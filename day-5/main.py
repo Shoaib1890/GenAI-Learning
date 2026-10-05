@@ -63,15 +63,15 @@ results = collection.query(
 
 print("\nRelevant chunks:")
 
-for index in top_indices:
-    print(f"\nSimilarity: {similarities[index].item():.4f}")
-    print(chunks[index])
+retrieved_chunks = results["documents"][0]
+
+for i, chunk in enumerate(retrieved_chunks):
+    print(f"\nChunk {i + 1}:")
+    print(chunk)
 
 print("\nQuestion:", question)
 
-context = "\n\n".join(
-    chunks[index] for index in top_indices
-)
+context = "\n\n".join(retrieved_chunks)
 
 
 response = client.chat.completions.create(
