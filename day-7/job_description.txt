@@ -1,0 +1,32 @@
+Backend Software Engineer
+
+We are looking for a Backend Software Engineer to join our engineering team and build scalable, reliable backend systems.
+
+Requirements:
+- 0–2 years of software development experience.
+- Strong programming skills in Python.
+- Experience building REST APIs using FastAPI or similar frameworks.
+- Good understanding of PostgreSQL and relational databases.
+- Experience with Git and GitHub.
+- Understanding of authentication, API integration, and backend system design.
+- Familiarity with Docker and containerized applications.
+- Knowledge of Redis or other caching systems is a plus.
+- Understanding of cloud deployment and services such as AWS, Azure, or GCP is a plus.
+- Familiarity with AI/LLM APIs and integrating AI capabilities into applications is a plus.
+
+Responsibilities:
+- Design and develop backend services and REST APIs.
+- Build and maintain reliable APIs for frontend and third-party integrations.
+- Work with PostgreSQL and optimize database queries when required.
+- Implement authentication, authorization, validation, and error handling.
+- Integrate external APIs and AI/LLM services into backend applications.
+- Write clean, maintainable, and testable Python code.
+- Debug production issues and improve application performance.
+- Collaborate with frontend engineers and other team members.
+- Participate in code reviews and follow Git-based development workflows.
+- Deploy and maintain backend services in cloud environments.
+
+Preferred:
+- Experience with FastAPI, Redis, Docker, and cloud platforms.
+- Familiarity with embeddings, vector databases, RAG, or other GenAI concepts.
+- Experience building production-ready full-stack applications.

@@ -1,0 +1,48 @@
+Mohammed Shoaib
++91 9948128788| shoaibmohammed1890@gmail.com| Portfolio
+LinkedIn| Github| LeetCode
+Education
+• Indian Institute of Information Technology, Design & Manufacturing Chennai, Tamil Nadu
+B.Tech in Mechanical Engineering — CGPA: 7.86 2022 – 2026
+• MS Education Academy Hyderabad, India
+XII — Marks: 97.1% 2020 – 2022
+Experience
+Software Developer — Founding Team Bengaluru, Karnataka
+SwitchiT May 2025 – Present
+• Built the frontend of SwitchiT’s V1 social networking platform from the ground up using React.js, TypeScript
+and Tailwind CSS, owning end-to-end implementation across authentication, posts, comments, likes, follows,
+connections, jobs and news.
+• Engineered core user flows by integrating backend REST APIs with the frontend, validating API contracts
+through Postman and handling client-side state, loading, errors and edge cases across the platform.
+• Developed search, filtering and interactive experiences using reusable components and state management,
+turning backend functionality into responsive, production-ready user interfaces.
+• Implemented reusable component patterns and responsive layouts across the platform, adapting frontend
+architecture and UI flows as product requirements evolved.
+• Extended the AI news pipeline with 27+ RSS sources, including OpenAI, NVIDIA, DeepMind, MIT and
+Hugging Face, supporting hourly ingestion and relevance filtering to reduce low-value articles reaching users.
+Skills
+• Programming Languages: Python, C/C++, JavaScript, TypeScript
+• Frontend: React.js, Next.js, Tailwind CSS, HTML, CSS
+• Backend & Data: Node.js, Express.js, REST APIs, MongoDB, MySQL, PostgreSQL, Prisma, Supabase
+• AI & Tools: Groq, OpenAI/OpenRouter, LLM Integration, Prompt Engineering, Git, GitHub, Postman
+• Core: OOP, DSA, Software Design, Problem Solving, Debugging
+Projects
+• StockPulse India| React, TypeScript, Tailwind CSS, ExpressJS, NodeJS, Groq AI
+◦ Built a full-stack Indian stock market dashboard with portfolio tracking, real-time news aggregation from 7
+RSS feeds, and AI-powered sentiment analysis using Groq LLaMA.
+◦ Integrated automated news processing and AI-driven sentiment analysis to surface actionable insights from
+market news.
+GitHub Link to the Project Live Link to the Project
+• CodeMentor AI| Next.js, TypeScript, Tailwind CSS, Prisma ORM, Supabase, Groq AI, GraphQL
+◦ Built an AI-powered DSA interview preparation copilot that analyzes LeetCode profiles through GraphQL,
+identifies coding weaknesses and generates personalized study plans.
+◦ Reduced database transaction latency by 96% by restructuring data ingestion using bulk inserts and service
+isolation.
+GitHub Link to the Project Live Link to the Project
+POSITIONS OF RESPONSIBILITY
+• Core Member: Placement Cell, IIITD&M Kancheepuram [June’25 - May’26] — Managing Mechanical batch
+placements as the primary link to the Placement Cell and recruiters.
+• Lead: Programming Club, IIITD&M Kancheepuram [July’24 - May’25] — Organized coding events and
+workshops to promote programming culture on campus.
+• Hostel Affairs Joint Secretary : SAC, IIITD&M Kancheepuram [July’24 - May’25] — Represented hostel
+affairs in the Student Affairs Council, contributing to student-related policy decisions.
