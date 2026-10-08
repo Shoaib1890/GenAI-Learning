@@ -1,166 +1,281 @@
 import os
 import json
+
 from dotenv import load_dotenv
 from groq import Groq
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
 
 
+# ==================================================
+# CONFIGURATION
+# ==================================================
+
 load_dotenv()
 
+GROQ_API_KEY = os.getenv("GROQ_API_KEY")
+
+if not GROQ_API_KEY:
+    raise ValueError(
+        "GROQ_API_KEY is missing. "
+        "Add it to your .env file."
+    )
+
 client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
+    api_key=GROQ_API_KEY
 )
 
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+embedding_model = SentenceTransformer(
+    "all-MiniLM-L6-v2"
+)
 
 REQUIRED_WEIGHT = 2
 PREFERRED_WEIGHT = 1
 
 
-skill_aliases = {
-        "Python": [
-            "python"
-        ],
+# ==================================================
+# REQUIREMENT CONFIGURATION
+# ==================================================
 
-        "REST API Development": [
-            "rest api",
-            "rest apis",
-            "express.js",
-            "express"
-        ],
+REQUIREMENT_GROUPS = {
+    "Python": [
+        "Python"
+    ],
 
-        "Databases": [
-            "postgresql",
-            "mysql",
-            "mongodb",
-            "relational database",
-            "relational databases"
-        ],
+    "REST API Development": [
+        "REST API Development",
+        "FastAPI"
+    ],
 
-        "Version Control": [
-            "git",
-            "github"
-        ],
+    "Databases": [
+        "PostgreSQL",
+        "relational databases"
+    ],
 
-        "Authentication": [
-            "authentication",
-            "auth"
-        ],
+    "Version Control": [
+        "Git",
+        "GitHub"
+    ],
 
-        "API Integration": [
-            "api integration",
-            "integrating backend rest apis",
-            "third-party api"
-        ],
+    "Authentication": [
+        "Authentication"
+    ],
 
-        "Containerization": [
-            "docker",
-            "containerized",
-            "containers"
-        ],
+    "API Integration": [
+        "API Integration"
+    ],
 
-        "Cloud": [
-            "aws",
-            "azure",
-            "gcp",
-            "google cloud",
-            "microsoft azure"
-        ],
+    "Backend System Design": [
+        "Backend System Design"
+    ],
 
-        "Caching": [
-            "redis",
-            "caching",
-            "cache"
-        ],
+    "Containerization": [
+        "Docker"
+    ],
 
-        "AI/LLM APIs": [
-            "openai",
-            "groq",
-            "openrouter",
-            "llm integration",
-            "llm api"
-        ],
+    "Cloud": [
+        "AWS",
+        "Azure",
+        "GCP"
+    ],
 
-        "GenAI": [
-            "generative ai",
-            "genai",
-            "llm integration",
-            "ai-powered"
-        ],
+    "Caching": [
+        "Redis"
+    ],
 
-        "RAG / Vector Search": [
-            "embeddings",
-            "vector database",
-            "vector databases",
-            "rag",
-            "retrieval augmented generation"
-        ],
+    "AI/LLM APIs": [
+        "AI/LLM APIs"
+    ],
 
-        "Full-stack Development": [
-            "full-stack",
-            "full stack",
-            "frontend and backend",
-            "frontend and backend development"
-        ]
-    }
+    "GenAI": [
+        "GenAI"
+    ],
 
+    "RAG / Vector Search": [
+        "Embeddings",
+        "Vector Databases",
+        "RAG"
+    ],
+
+    "Full-stack Development": [
+        "Full-stack application development"
+    ]
+}
+
+
+SKILL_ALIASES = {
+    "Python": [
+        "python"
+    ],
+
+    "REST API Development": [
+        "rest api",
+        "rest apis",
+        "express.js",
+        "express"
+    ],
+
+    "Databases": [
+        "postgresql",
+        "mysql",
+        "mongodb",
+        "relational database",
+        "relational databases"
+    ],
+
+    "Version Control": [
+        "git",
+        "github"
+    ],
+
+    "Authentication": [
+        "authentication",
+        "auth"
+    ],
+
+    "API Integration": [
+        "api integration",
+        "integrating backend rest apis",
+        "third-party api"
+    ],
+
+    "Containerization": [
+        "docker",
+        "containerized",
+        "containers"
+    ],
+
+    "Cloud": [
+        "aws",
+        "azure",
+        "gcp",
+        "google cloud",
+        "microsoft azure"
+    ],
+
+    "Caching": [
+        "redis",
+        "caching",
+        "cache"
+    ],
+
+    "AI/LLM APIs": [
+        "openai",
+        "groq",
+        "openrouter",
+        "llm integration",
+        "llm api"
+    ],
+
+    "GenAI": [
+        "generative ai",
+        "genai",
+        "llm integration",
+        "ai-powered"
+    ],
+
+    "RAG / Vector Search": [
+        "embeddings",
+        "vector database",
+        "vector databases",
+        "rag",
+        "retrieval augmented generation"
+    ],
+
+    "Full-stack Development": [
+        "full-stack",
+        "full stack",
+        "frontend and backend",
+        "frontend and backend development"
+    ]
+}
+
+
+# ==================================================
+# FILE LOADING
+# ==================================================
 
 def load_files():
-    with open("resume.txt", "r", encoding="utf-8") as file:
+    with open(
+        "resume.txt",
+        "r",
+        encoding="utf-8"
+    ) as file:
         resume = file.read()
 
-    with open("job_description.txt", "r", encoding="utf-8") as file:
+    with open(
+        "job_description.txt",
+        "r",
+        encoding="utf-8"
+    ) as file:
         job_description = file.read()
 
     return resume, job_description
 
 
+# ==================================================
+# REQUIREMENT EXTRACTION
+# ==================================================
+
 def extract_requirements(job_description):
-    skill_response = client.chat.completions.create(
+
+    schema = {
+        "type": "object",
+        "properties": {
+            "requirements": {
+                "type": "array",
+                "items": {
+                    "type": "object",
+                    "properties": {
+                        "skill": {
+                            "type": "string"
+                        },
+                        "priority": {
+                            "type": "string",
+                            "enum": [
+                                "required",
+                                "preferred"
+                            ]
+                        }
+                    },
+                    "required": [
+                        "skill",
+                        "priority"
+                    ],
+                    "additionalProperties": False
+                }
+            }
+        },
+        "required": [
+            "requirements"
+        ],
+        "additionalProperties": False
+    }
+
+    response = client.chat.completions.create(
         model="openai/gpt-oss-20b",
+        temperature=0,
         messages=[
             {
                 "role": "system",
                 "content": """
 You are a job description analyzer.
 
-Extract technical skills and capabilities from the job description.
+Extract technical skills and capabilities
+from the job description.
 
-For every extracted requirement, assign exactly one priority:
+Classify every requirement as either:
+
 - required
 - preferred
 
-Return ONLY a JSON object.
+Return ONLY valid JSON matching the
+provided schema.
 
-The JSON object must contain exactly one key:
-"requirements"
-
-"requirements" must be an array of objects.
-
-Each object must contain exactly two keys:
-"skill" and "priority".
-
-Example:
-
-{
-  "requirements": [
-    {
-      "skill": "Python",
-      "priority": "required"
-    },
-    {
-      "skill": "Docker",
-      "priority": "preferred"
-    }
-  ]
-}
-
-Rules:
-- Do not include markdown.
-- Do not include explanations.
-- Do not include text before or after the JSON.
-- Do not decide whether the candidate has the skill.
+Do not decide whether the candidate
+has the skill.
+Do not include explanations.
+Do not include markdown.
 """
             },
             {
@@ -168,87 +283,38 @@ Rules:
                 "content": job_description
             }
         ],
-        response_format={"type": "json_object"}
+        response_format={
+            "type": "json_schema",
+            "json_schema": {
+                "name": "job_requirements",
+                "schema": schema
+            }
+        }
     )
 
-    skill_result = json.loads(
-        skill_response.choices[0].message.content
+    result = json.loads(
+        response.choices[0].message.content
     )
 
-    return skill_result["requirements"]
+    return result["requirements"]
+
+
+# ==================================================
+# REQUIREMENT NORMALIZATION
+# ==================================================
 
 def normalize_requirements():
+    return REQUIREMENT_GROUPS
 
-    requirement_groups = {
-        "Python": [
-            "Python"
-        ],
 
-        "REST API Development": [
-            "REST API Development",
-            "FastAPI"
-        ],
+# ==================================================
+# EXACT / GROUP MATCHING
+# ==================================================
 
-        "Databases": [
-            "PostgreSQL",
-            "relational databases"
-        ],
-
-        "Version Control": [
-            "Git",
-            "GitHub"
-        ],
-
-        "Authentication": [
-            "Authentication"
-        ],
-
-        "API Integration": [
-            "API Integration"
-        ],
-
-        "Backend System Design": [
-            "Backend System Design"
-        ],
-
-        "Containerization": [
-            "Docker"
-        ],
-
-        "Cloud": [
-            "AWS",
-            "Azure",
-            "GCP"
-        ],
-
-        "Caching": [
-            "Redis"
-        ],
-
-        "AI/LLM APIs": [
-            "AI/LLM APIs"
-        ],
-
-        "GenAI": [
-            "GenAI"
-        ],
-
-        "RAG / Vector Search": [
-            "Embeddings",
-            "Vector Databases",
-            "RAG"
-        ],
-
-        "Full-stack Development": [
-            "Full-stack application development"
-        ]
-    }
-
-    return requirement_groups
-
-def find_exact_matches(resume, requirement_groups):
-
-    
+def find_exact_matches(
+    resume,
+    requirement_groups
+):
 
     normalized_resume = resume.lower()
 
@@ -257,7 +323,7 @@ def find_exact_matches(resume, requirement_groups):
 
     for group in requirement_groups:
 
-        aliases = skill_aliases.get(
+        aliases = SKILL_ALIASES.get(
             group,
             []
         )
@@ -274,18 +340,35 @@ def find_exact_matches(resume, requirement_groups):
 
     return matched_groups, missing_groups
 
-def prepare_resume_embeddings(resume, embedding_model):
+
+# ==================================================
+# RESUME EMBEDDINGS
+# ==================================================
+
+def prepare_resume_embeddings(
+    resume,
+    embedding_model
+):
+
     resume_chunks = [
         line.strip()
         for line in resume.splitlines()
         if len(line.strip()) > 30
     ]
 
+    if not resume_chunks:
+        return [], []
+
     resume_embeddings = embedding_model.encode(
         resume_chunks
     )
 
     return resume_chunks, resume_embeddings
+
+
+# ==================================================
+# HYBRID EVIDENCE RETRIEVAL
+# ==================================================
 
 def retrieve_evidence(
     resume_chunks,
@@ -294,9 +377,11 @@ def retrieve_evidence(
     requirement_groups,
     embedding_model
 ):
-   
 
     semantic_candidates = []
+
+    if not resume_chunks:
+        return semantic_candidates
 
     for group in missing_groups:
 
@@ -306,7 +391,7 @@ def retrieve_evidence(
         # Keyword retrieval
         # -----------------------------
 
-        keywords = skill_aliases.get(
+        keywords = SKILL_ALIASES.get(
             group,
             []
         )
@@ -366,8 +451,8 @@ def retrieve_evidence(
         # -----------------------------
 
         combined_evidence = (
-            keyword_evidence +
-            semantic_evidence
+            keyword_evidence
+            + semantic_evidence
         )
 
         unique_evidence = {}
@@ -388,14 +473,22 @@ def retrieve_evidence(
     return semantic_candidates
 
 
-def verify_evidence(semantic_candidates):
+# ==================================================
+# LLM EVIDENCE VERIFICATION
+# ==================================================
+
+def verify_evidence(
+    semantic_candidates
+):
 
     verification_prompt = """
 You are a strict technical resume evaluator.
 
-Evaluate each requirement group using ONLY the provided resume evidence.
+Evaluate each requirement group using ONLY
+the provided resume evidence.
 
 IMPORTANT RULES:
+
 1. Do not assume experience.
 2. Do not infer a technology from a related technology.
 3. Related concepts are NOT proof of the required technology.
@@ -404,8 +497,8 @@ IMPORTANT RULES:
    require explicit evidence of that technology.
 5. For capability requirements such as backend system design,
    require explicit evidence of architecture, system design,
-   scalability, service architecture, database design, caching,
-   performance architecture, or similar design decisions.
+   scalability, service architecture, database design,
+   caching, performance architecture, or similar design decisions.
    Building APIs alone is NOT sufficient.
 6. REST APIs built with Express.js can satisfy REST API
    development when the requirement allows "FastAPI or similar".
@@ -418,7 +511,7 @@ IMPORTANT RULES:
 12. Never invent experience.
 13. Return ONLY valid JSON.
 
-Use this exact structure:
+Return this structure:
 
 {
   "results": [
@@ -431,8 +524,9 @@ Use this exact structure:
 }
 """
 
-    verification_response = client.chat.completions.create(
+    response = client.chat.completions.create(
         model="openai/gpt-oss-20b",
+        temperature=0,
         messages=[
             {
                 "role": "system",
@@ -440,17 +534,24 @@ Use this exact structure:
             },
             {
                 "role": "user",
-                "content": json.dumps(semantic_candidates)
+                "content": json.dumps(
+                    semantic_candidates
+                )
             }
         ],
-        response_format={"type": "json_object"}
+        response_format={
+            "type": "json_object"
+        }
     )
 
-    verification_result = json.loads(
-        verification_response.choices[0].message.content
+    return json.loads(
+        response.choices[0].message.content
     )
 
-    return verification_result
+
+# ==================================================
+# MATCH SCORE
+# ==================================================
 
 def calculate_match_score(
     requirements,
@@ -458,9 +559,12 @@ def calculate_match_score(
     matched_groups,
     verified_matches
 ):
-    final_matched = list(dict.fromkeys(
-        matched_groups + verified_matches
-    ))
+
+    final_matched = list(
+        dict.fromkeys(
+            matched_groups + verified_matches
+        )
+    )
 
     final_missing = [
         group
@@ -468,10 +572,10 @@ def calculate_match_score(
         if group not in final_matched
     ]
 
-
     group_priorities = {}
 
     for requirement in requirements:
+
         skill = requirement["skill"]
         priority = requirement["priority"]
 
@@ -525,19 +629,26 @@ def calculate_match_score(
     )
 
 
+# ==================================================
+# RECOMMENDATIONS
+# ==================================================
+
 def generate_recommendations(
     match_score,
     final_matched,
     final_missing
 ):
+
     recommendation_prompt = f"""
-You are a career advisor helping a software developer
-prepare for a job.
+You are a practical career advisor
+helping a software developer prepare
+for a job.
 
-Based ONLY on the information below, provide concise,
-practical recommendations.
+Based ONLY on the information below,
+provide concise and practical recommendations.
 
-Match Score: {match_score}%
+Match Score:
+{match_score}%
 
 Matched Skills:
 {", ".join(final_matched)}
@@ -572,13 +683,15 @@ Rules:
 - Keep recommendations practical.
 """
 
-    recommendation_response = client.chat.completions.create(
+    response = client.chat.completions.create(
         model="openai/gpt-oss-20b",
+        temperature=0,
         messages=[
             {
                 "role": "system",
                 "content": """
 You are a practical career advisor.
+
 Return only valid JSON.
 Do not invent information.
 """
@@ -588,172 +701,285 @@ Do not invent information.
                 "content": recommendation_prompt
             }
         ],
-        response_format={"type": "json_object"}
+        response_format={
+            "type": "json_object"
+        }
     )
 
     return json.loads(
-        recommendation_response.choices[0].message.content
+        response.choices[0].message.content
     )
 
-resume, job_description = load_files()
 
-print("Resume loaded:", len(resume), "characters")
-print("Job description loaded:", len(job_description), "characters")
+# ==================================================
+# MAIN APPLICATION
+# ==================================================
+
+def main():
+
+    # -----------------------------
+    # Load files
+    # -----------------------------
+
+    resume, job_description = load_files()
+
+    print(
+        "Resume loaded:",
+        len(resume),
+        "characters"
+    )
+
+    print(
+        "Job description loaded:",
+        len(job_description),
+        "characters"
+    )
+
+    # -----------------------------
+    # Extract requirements
+    # -----------------------------
+
+    requirements = extract_requirements(
+        job_description
+    )
+
+    # -----------------------------
+    # Normalize requirements
+    # -----------------------------
+
+    requirement_groups = normalize_requirements()
+
+    print("\n📋 NORMALIZED REQUIREMENTS")
+
+    for group, skills in requirement_groups.items():
+        print(
+            f"• {group}: "
+            f"{', '.join(skills)}"
+        )
+
+    # -----------------------------
+    # Exact matching
+    # -----------------------------
+
+    matched_groups, missing_groups = (
+        find_exact_matches(
+            resume,
+            requirement_groups
+        )
+    )
+
+    print("\n✅ EXACT / GROUP MATCHES")
+
+    for group in matched_groups:
+        print("•", group)
+
+    print("\n❌ GROUPS NOT FOUND")
+
+    for group in missing_groups:
+        print("•", group)
+
+    # -----------------------------
+    # Prepare resume embeddings
+    # -----------------------------
+
+    resume_chunks, resume_embeddings = (
+        prepare_resume_embeddings(
+            resume,
+            embedding_model
+        )
+    )
+
+    # -----------------------------
+    # Retrieve evidence
+    # -----------------------------
+
+    semantic_candidates = retrieve_evidence(
+        resume_chunks,
+        resume_embeddings,
+        missing_groups,
+        requirement_groups,
+        embedding_model
+    )
+
+    # -----------------------------
+    # Verify evidence
+    # -----------------------------
+
+    verification_result = verify_evidence(
+        semantic_candidates
+    )
+
+    print("\n🤖 EVIDENCE VERIFICATION")
+
+    verified_matches = []
+
+    results = verification_result.get(
+        "results",
+        []
+    )
+
+    if not isinstance(results, list):
+
+        print(
+            "⚠️ Unexpected verification format:"
+        )
+
+        print(verification_result)
+
+        results = []
+
+    for result in results:
+
+        if not isinstance(result, dict):
+
+            print(
+                "⚠️ Skipping invalid "
+                "verification result:",
+                result
+            )
+
+            continue
+
+        group = result.get("group")
+        matched = result.get(
+            "matched",
+            False
+        )
+        reason = result.get(
+            "reason",
+            ""
+        )
+
+        if not group:
+            continue
+
+        if matched:
+
+            verified_matches.append(group)
+
+            status = "✅ MATCH"
+
+        else:
+
+            status = "❌ NOT MATCH"
+
+        print(f"\n{group}")
+        print(status)
+        print("Reason:", reason)
+
+    # -----------------------------
+    # Calculate final score
+    # -----------------------------
+
+    (
+        final_matched,
+        final_missing,
+        match_score,
+        matched_weight,
+        total_weight
+    ) = calculate_match_score(
+        requirements,
+        requirement_groups,
+        matched_groups,
+        verified_matches
+    )
+
+    # -----------------------------
+    # Final resume match
+    # -----------------------------
+
+    print("\n" + "=" * 50)
+    print("             FINAL RESUME MATCH")
+    print("=" * 50)
+
+    print(
+        f"\nMatch Score: {match_score}%"
+    )
+
+    print(
+        f"Matched Weight: "
+        f"{matched_weight}/{total_weight}"
+    )
+
+    print("\n✅ MATCHED")
+
+    for group in final_matched:
+        print("•", group)
+
+    print("\n❌ MISSING")
+
+    for group in final_missing:
+        print("•", group)
+
+    # -----------------------------
+    # Generate recommendations
+    # -----------------------------
+
+    recommendations = (
+        generate_recommendations(
+            match_score,
+            final_matched,
+            final_missing
+        )
+    )
+
+    # -----------------------------
+    # Recommendation report
+    # -----------------------------
+
+    print("\n" + "=" * 50)
+    print("             JOB MATCH ANALYSIS")
+    print("=" * 50)
+
+    print(
+        f"\n🎯 Match Score: "
+        f"{match_score}%"
+    )
+
+    print("\n🔥 STRONG MATCHES")
+
+    for skill in recommendations[
+        "strong_matches"
+    ]:
+        print("•", skill)
+
+    print("\n⚠️ SKILL GAPS")
+
+    for skill in recommendations[
+        "skill_gaps"
+    ]:
+        print("•", skill)
+
+    print("\n📚 RECOMMENDATIONS")
+
+    for item in recommendations[
+        "recommendations"
+    ]:
+
+        print(
+            f"\n• {item['skill']}"
+        )
+
+        print(
+            f"  Why: {item['reason']}"
+        )
+
+        print(
+            f"  Action: {item['action']}"
+        )
+
+    print("\n💡 SUMMARY")
+
+    print(
+        recommendations["summary"]
+    )
+
+    print("\n" + "=" * 50)
 
 
+# ==================================================
+# ENTRY POINT
+# ==================================================
 
-
-requirements = extract_requirements(job_description)
-# Normalize related requirements into broader capability groups
-requirement_groups = normalize_requirements()
-
-print("\n📋 NORMALIZED REQUIREMENTS")
-
-for group, skills in requirement_groups.items():
-    print(f"• {group}: {', '.join(skills)}")
-
-matched_groups, missing_groups = find_exact_matches(
-    resume,
-    requirement_groups
-)
-
-print("\n✅ EXACT / GROUP MATCHES")
-for group in matched_groups:
-    print("•", group)
-
-print("\n❌ GROUPS NOT FOUND")
-for group in missing_groups:
-    print("•", group)
-
-
-
-resume_chunks, resume_embeddings = prepare_resume_embeddings(
-    resume,
-    embedding_model
-)
-
-semantic_candidates = retrieve_evidence(
-    resume_chunks,
-    resume_embeddings,
-    missing_groups,
-    requirement_groups,
-    embedding_model
-)
-
-# --------------------------------------------------
-# LLM EVIDENCE VERIFICATION
-# --------------------------------------------------
-
-verification_result = verify_evidence(
-    semantic_candidates
-)
-
-print("\n🤖 EVIDENCE VERIFICATION")
-
-verified_matches = []
-
-
-results = verification_result.get("results", [])
-
-if not isinstance(results, list):
-    print("⚠️ Unexpected verification format:")
-    print(verification_result)
-    results = []
-
-for result in results:
-
-    if not isinstance(result, dict):
-        print("⚠️ Skipping invalid verification result:", result)
-        continue
-
-    group = result.get("group")
-    matched = result.get("matched", False)
-    reason = result.get("reason", "")
-
-    if not group:
-        continue
-
-    if matched:
-        verified_matches.append(group)
-        status = "✅ MATCH"
-    else:
-        status = "❌ NOT MATCH"
-
-    print(f"\n{group}")
-    print(status)
-    print("Reason:", reason)
-
-
-
-(
-    final_matched,
-    final_missing,
-    match_score,
-    matched_weight,
-    total_weight
-) = calculate_match_score(
-    requirements,
-    requirement_groups,
-    matched_groups,
-    verified_matches
-)
-# --------------------------------------------------
-# FINAL REPORT
-# --------------------------------------------------
-
-print("\n" + "=" * 50)
-print("             FINAL RESUME MATCH")
-print("=" * 50)
-
-print(f"\nMatch Score: {match_score}%")
-print(
-    f"Matched Weight: "
-    f"{matched_weight}/{total_weight}"
-)
-
-print("\n✅ MATCHED")
-for group in final_matched:
-    print("•", group)
-
-print("\n❌ MISSING")
-for group in final_missing:
-    print("•", group)
-
-
-
-
-recommendations = generate_recommendations(
-    match_score,
-    final_matched,
-    final_missing
-)
-
-# --------------------------------------------------
-# RECOMMENDATION REPORT
-# --------------------------------------------------
-
-print("\n" + "=" * 50)
-print("             JOB MATCH ANALYSIS")
-print("=" * 50)
-
-print(f"\n🎯 Match Score: {match_score}%")
-
-print("\n🔥 STRONG MATCHES")
-for skill in recommendations["strong_matches"]:
-    print("•", skill)
-
-print("\n⚠️ SKILL GAPS")
-for skill in recommendations["skill_gaps"]:
-    print("•", skill)
-
-print("\n📚 RECOMMENDATIONS")
-
-for item in recommendations["recommendations"]:
-    print(f"\n• {item['skill']}")
-    print(f"  Why: {item['reason']}")
-    print(f"  Action: {item['action']}")
-
-print("\n💡 SUMMARY")
-print(recommendations["summary"])
-
-print("\n" + "=" * 50)
+if __name__ == "__main__":
+    main()
