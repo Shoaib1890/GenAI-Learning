@@ -14,6 +14,97 @@ client = Groq(
 
 embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
 
+REQUIRED_WEIGHT = 2
+PREFERRED_WEIGHT = 1
+
+
+skill_aliases = {
+        "Python": [
+            "python"
+        ],
+
+        "REST API Development": [
+            "rest api",
+            "rest apis",
+            "express.js",
+            "express"
+        ],
+
+        "Databases": [
+            "postgresql",
+            "mysql",
+            "mongodb",
+            "relational database",
+            "relational databases"
+        ],
+
+        "Version Control": [
+            "git",
+            "github"
+        ],
+
+        "Authentication": [
+            "authentication",
+            "auth"
+        ],
+
+        "API Integration": [
+            "api integration",
+            "integrating backend rest apis",
+            "third-party api"
+        ],
+
+        "Containerization": [
+            "docker",
+            "containerized",
+            "containers"
+        ],
+
+        "Cloud": [
+            "aws",
+            "azure",
+            "gcp",
+            "google cloud",
+            "microsoft azure"
+        ],
+
+        "Caching": [
+            "redis",
+            "caching",
+            "cache"
+        ],
+
+        "AI/LLM APIs": [
+            "openai",
+            "groq",
+            "openrouter",
+            "llm integration",
+            "llm api"
+        ],
+
+        "GenAI": [
+            "generative ai",
+            "genai",
+            "llm integration",
+            "ai-powered"
+        ],
+
+        "RAG / Vector Search": [
+            "embeddings",
+            "vector database",
+            "vector databases",
+            "rag",
+            "retrieval augmented generation"
+        ],
+
+        "Full-stack Development": [
+            "full-stack",
+            "full stack",
+            "frontend and backend",
+            "frontend and backend development"
+        ]
+    }
+
 
 def load_files():
     with open("resume.txt", "r", encoding="utf-8") as file:
@@ -36,25 +127,40 @@ You are a job description analyzer.
 
 Extract technical skills and capabilities from the job description.
 
-Classify each as either:
+For every extracted requirement, assign exactly one priority:
 - required
 - preferred
 
-Return ONLY valid JSON.
+Return ONLY a JSON object.
 
-The JSON must have this structure:
+The JSON object must contain exactly one key:
+"requirements"
+
+"requirements" must be an array of objects.
+
+Each object must contain exactly two keys:
+"skill" and "priority".
+
+Example:
 
 {
   "requirements": [
     {
       "skill": "Python",
       "priority": "required"
+    },
+    {
+      "skill": "Docker",
+      "priority": "preferred"
     }
   ]
 }
 
-Do not include any text outside the JSON.
-Do not decide whether the candidate has the skill.
+Rules:
+- Do not include markdown.
+- Do not include explanations.
+- Do not include text before or after the JSON.
+- Do not decide whether the candidate has the skill.
 """
             },
             {
@@ -142,92 +248,7 @@ def normalize_requirements():
 
 def find_exact_matches(resume, requirement_groups):
 
-    skill_aliases = {
-        "Python": [
-            "python"
-        ],
-
-        "REST API Development": [
-            "rest api",
-            "rest apis",
-            "express.js",
-            "express"
-        ],
-
-        "Databases": [
-            "postgresql",
-            "mysql",
-            "mongodb",
-            "relational database",
-            "relational databases"
-        ],
-
-        "Version Control": [
-            "git",
-            "github"
-        ],
-
-        "Authentication": [
-            "authentication",
-            "auth"
-        ],
-
-        "API Integration": [
-            "api integration",
-            "integrating backend rest apis",
-            "third-party api"
-        ],
-
-        "Containerization": [
-            "docker",
-            "containerized",
-            "containers"
-        ],
-
-        "Cloud": [
-            "aws",
-            "azure",
-            "gcp",
-            "google cloud",
-            "microsoft azure"
-        ],
-
-        "Caching": [
-            "redis",
-            "caching",
-            "cache"
-        ],
-
-        "AI/LLM APIs": [
-            "openai",
-            "groq",
-            "openrouter",
-            "llm integration",
-            "llm api"
-        ],
-
-        "GenAI": [
-            "generative ai",
-            "genai",
-            "llm integration",
-            "ai-powered"
-        ],
-
-        "RAG / Vector Search": [
-            "embeddings",
-            "vector database",
-            "vector databases",
-            "rag",
-            "retrieval augmented generation"
-        ],
-
-        "Full-stack Development": [
-            "full-stack",
-            "full stack",
-            "frontend and backend",
-            "frontend and backend development"
-        ]
-    }
+    
 
     normalized_resume = resume.lower()
 
@@ -253,12 +274,7 @@ def find_exact_matches(resume, requirement_groups):
 
     return matched_groups, missing_groups
 
-def retrieve_evidence(
-    resume,
-    missing_groups,
-    requirement_groups,
-    embedding_model
-):
+def prepare_resume_embeddings(resume, embedding_model):
     resume_chunks = [
         line.strip()
         for line in resume.splitlines()
@@ -268,6 +284,17 @@ def retrieve_evidence(
     resume_embeddings = embedding_model.encode(
         resume_chunks
     )
+
+    return resume_chunks, resume_embeddings
+
+def retrieve_evidence(
+    resume_chunks,
+    resume_embeddings,
+    missing_groups,
+    requirement_groups,
+    embedding_model
+):
+   
 
     semantic_candidates = []
 
@@ -279,10 +306,10 @@ def retrieve_evidence(
         # Keyword retrieval
         # -----------------------------
 
-        keywords = [
-            skill.lower()
-            for skill in skills
-        ]
+        keywords = skill_aliases.get(
+            group,
+            []
+        )
 
         keyword_evidence = []
 
@@ -441,8 +468,6 @@ def calculate_match_score(
         if group not in final_matched
     ]
 
-    REQUIRED_WEIGHT = 2
-    PREFERRED_WEIGHT = 1
 
     group_priorities = {}
 
@@ -602,14 +627,18 @@ for group in missing_groups:
 
 
 
+resume_chunks, resume_embeddings = prepare_resume_embeddings(
+    resume,
+    embedding_model
+)
 
 semantic_candidates = retrieve_evidence(
-    resume,
+    resume_chunks,
+    resume_embeddings,
     missing_groups,
     requirement_groups,
     embedding_model
 )
-
 
 # --------------------------------------------------
 # LLM EVIDENCE VERIFICATION
