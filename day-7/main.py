@@ -5,6 +5,16 @@ from groq import Groq
 from sentence_transformers import SentenceTransformer
 from sentence_transformers.util import cos_sim
 
+
+load_dotenv()
+
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
+)
+
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+
 def load_files():
     with open("resume.txt", "r", encoding="utf-8") as file:
         resume = file.read()
@@ -61,7 +71,7 @@ Do not decide whether the candidate has the skill.
 
     return skill_result["requirements"]
 
-def normalize_requirements(requirements):
+def normalize_requirements():
 
     requirement_groups = {
         "Python": [
@@ -568,19 +578,9 @@ print("Job description loaded:", len(job_description), "characters")
 
 
 
-load_dotenv()
-
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
-
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
 requirements = extract_requirements(job_description)
 # Normalize related requirements into broader capability groups
-requirement_groups = normalize_requirements(
-    requirements
-)
+requirement_groups = normalize_requirements()
 
 print("\n📋 NORMALIZED REQUIREMENTS")
 
@@ -622,7 +622,7 @@ verification_result = verify_evidence(
 print("\n🤖 EVIDENCE VERIFICATION")
 
 verified_matches = []
-verified_missing = []
+
 
 results = verification_result.get("results", [])
 
@@ -648,7 +648,6 @@ for result in results:
         verified_matches.append(group)
         status = "✅ MATCH"
     else:
-        verified_missing.append(group)
         status = "❌ NOT MATCH"
 
     print(f"\n{group}")
