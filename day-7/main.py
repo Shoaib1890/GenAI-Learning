@@ -243,236 +243,122 @@ def find_exact_matches(resume, requirement_groups):
 
     return matched_groups, missing_groups
 
-resume, job_description = load_files()
-
-print("Resume loaded:", len(resume), "characters")
-print("Job description loaded:", len(job_description), "characters")
-
-
-
-
-load_dotenv()
-
-client = Groq(
-    api_key=os.getenv("GROQ_API_KEY")
-)
-
-embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
-
-requirements = extract_requirements(job_description)
-# Normalize related requirements into broader capability groups
-requirement_groups = normalize_requirements(
-    requirements
-)
-
-print("\n📋 NORMALIZED REQUIREMENTS")
-
-for group, skills in requirement_groups.items():
-    print(f"• {group}: {', '.join(skills)}")
-
-matched_groups, missing_groups = find_exact_matches(
+def retrieve_evidence(
     resume,
-    requirement_groups
-)
-
-print("\n✅ EXACT / GROUP MATCHES")
-for group in matched_groups:
-    print("•", group)
-
-print("\n❌ GROUPS NOT FOUND")
-for group in missing_groups:
-    print("•", group)
-
-
-# Create smaller resume chunks for semantic matching
-resume_chunks = [
-    line.strip()
-    for line in resume.splitlines()
-    if len(line.strip()) > 30
-]
-
-resume_embeddings = embedding_model.encode(resume_chunks)
-
-print("\n🧠 SEMANTIC MATCHING")
-
-# Create resume chunks for evidence retrieval
-resume_chunks = [
-    line.strip()
-    for line in resume.splitlines()
-    if len(line.strip()) > 30
-]
-
-resume_embeddings = embedding_model.encode(resume_chunks)
-
-
-semantic_candidates = []
-
-for group in missing_groups:
-
-    skills = requirement_groups[group]
-
-    # ---------------------------------------------
-    # 1. KEYWORD RETRIEVAL
-    # ---------------------------------------------
-
-    keywords = [
-        skill.lower()
-        for skill in skills
+    missing_groups,
+    requirement_groups,
+    embedding_model
+):
+    resume_chunks = [
+        line.strip()
+        for line in resume.splitlines()
+        if len(line.strip()) > 30
     ]
 
-    keyword_evidence = []
-
-    for chunk in resume_chunks:
-
-        chunk_lower = chunk.lower()
-
-        if any(keyword in chunk_lower for keyword in keywords):
-            keyword_evidence.append({
-                "text": chunk,
-                "similarity": 1.0,
-                "source": "keyword"
-            })
-
-
-    # ---------------------------------------------
-    # 2. SEMANTIC RETRIEVAL
-    # ---------------------------------------------
-
-    semantic_query = (
-        f"Experience with {group}: "
-        + ", ".join(skills)
+    resume_embeddings = embedding_model.encode(
+        resume_chunks
     )
 
-    group_embedding = embedding_model.encode(
-        semantic_query
-    )
+    semantic_candidates = []
 
-    similarities = cos_sim(
-        group_embedding,
-        resume_embeddings
-    )[0]
+    for group in missing_groups:
 
-    top_indices = similarities.argsort(
-        descending=True
-    )[:3]
+        skills = requirement_groups[group]
 
-    semantic_evidence = [
-        {
-            "text": resume_chunks[index],
-            "similarity": round(
-                similarities[index].item(),
-                3
-            ),
-            "source": "semantic"
-        }
-        for index in top_indices
-    ]
+        # -----------------------------
+        # Keyword retrieval
+        # -----------------------------
 
+        keywords = [
+            skill.lower()
+            for skill in skills
+        ]
 
-    # ---------------------------------------------
-    # 3. COMBINE EVIDENCE
-    # ---------------------------------------------
+        keyword_evidence = []
 
-    combined_evidence = (
-        keyword_evidence +
-        semantic_evidence
-    )
+        for chunk in resume_chunks:
 
-    # Remove duplicate resume lines
-    unique_evidence = {}
+            chunk_lower = chunk.lower()
 
-    for item in combined_evidence:
-        unique_evidence[item["text"]] = item
+            if any(
+                keyword in chunk_lower
+                for keyword in keywords
+            ):
+                keyword_evidence.append({
+                    "text": chunk,
+                    "similarity": 1.0,
+                    "source": "keyword"
+                })
 
-    evidence = list(unique_evidence.values())[:5]
+        # -----------------------------
+        # Semantic retrieval
+        # -----------------------------
 
-
-    semantic_candidates.append({
-        "group": group,
-        "skills": skills,
-        "evidence": evidence
-    })
-
-print("\n🔍 HYBRID EVIDENCE")
-
-for candidate in semantic_candidates:
-
-    print(f"\nGroup: {candidate['group']}")
-
-    for item in candidate["evidence"]:
-
-        print(
-            f"  [{item['source']}] "
-            f"{item['similarity']}: "
-            f"{item['text']}"
+        semantic_query = (
+            f"Experience with {group}: "
+            + ", ".join(skills)
         )
 
-# --------------------------------------------------
-# LLM EVIDENCE VERIFICATION
-# --------------------------------------------------
-
-verification_prompt = """
-You are a strict resume evaluator.
-
-Evaluate each requirement group using ONLY the provided
-resume evidence.
-
-Rules:
-
-1. Do not assume experience.
-2. Do not invent experience.
-3. Exact technologies require explicit evidence.
-4. A group is matched if the evidence clearly demonstrates
-   at least one capability represented by that group.
-5. Related technologies may count only when the requirement
-   explicitly allows alternatives.
-6. If evidence is insufficient, mark matched as false.
-
-Return ONLY valid JSON.
-
-Required format:
-
-{
-    "results": [
-        {
-            "group": "group name",
-            "matched": true,
-            "reason": "short explanation"
-        }
-    ]
-}
-
-REQUIREMENT GROUPS AND RESUME EVIDENCE:
-"""
-
-for candidate in semantic_candidates:
-
-    verification_prompt += (
-        f"\n\nGroup: {candidate['group']}\n"
-        f"Required skills: {', '.join(candidate['skills'])}\n"
-    )
-
-    for item in candidate["evidence"]:
-
-        verification_prompt += (
-            f"- Similarity: {item['similarity']}\n"
-            f"  Resume evidence: {item['text']}\n"
+        group_embedding = embedding_model.encode(
+            semantic_query
         )
 
+        similarities = cos_sim(
+            group_embedding,
+            resume_embeddings
+        )[0]
 
-verification_response = client.chat.completions.create(
-    model="openai/gpt-oss-20b",
-    messages=[
-        {
-    "role": "system",
-    "content": """
+        top_indices = similarities.argsort(
+            descending=True
+        )[:3]
+
+        semantic_evidence = [
+            {
+                "text": resume_chunks[index],
+                "similarity": round(
+                    similarities[index].item(),
+                    3
+                ),
+                "source": "semantic"
+            }
+            for index in top_indices
+        ]
+
+        # -----------------------------
+        # Combine evidence
+        # -----------------------------
+
+        combined_evidence = (
+            keyword_evidence +
+            semantic_evidence
+        )
+
+        unique_evidence = {}
+
+        for item in combined_evidence:
+            unique_evidence[item["text"]] = item
+
+        evidence = list(
+            unique_evidence.values()
+        )[:5]
+
+        semantic_candidates.append({
+            "group": group,
+            "skills": skills,
+            "evidence": evidence
+        })
+
+    return semantic_candidates
+
+
+def verify_evidence(semantic_candidates):
+
+    verification_prompt = """
 You are a strict technical resume evaluator.
 
-Evaluate each requirement group using ONLY the provided
-resume evidence.
+Evaluate each requirement group using ONLY the provided resume evidence.
 
 IMPORTANT RULES:
-
 1. Do not assume experience.
 2. Do not infer a technology from a related technology.
 3. Related concepts are NOT proof of the required technology.
@@ -493,189 +379,123 @@ IMPORTANT RULES:
 10. Never treat semantic similarity as proof.
 11. If the evidence is insufficient, return matched=false.
 12. Never invent experience.
-13. Never ask for additional information.
-14. Return ONLY valid JSON.
+13. Return ONLY valid JSON.
 
 Use this exact structure:
 
 {
-    "results": [
-        {
-            "group": "group name",
-            "matched": true,
-            "reason": "short evidence-based explanation"
-        }
-    ]
+  "results": [
+    {
+      "group": "group name",
+      "matched": true,
+      "reason": "short evidence-based explanation"
+    }
+  ]
 }
 """
-},
-        {
-            "role": "user",
-            "content": verification_prompt
-        }
-    ],
-    response_format={"type": "json_object"}
-)
 
-verification_result = json.loads(
-    verification_response.choices[0].message.content
-)
+    verification_response = client.chat.completions.create(
+        model="openai/gpt-oss-20b",
+        messages=[
+            {
+                "role": "system",
+                "content": verification_prompt
+            },
+            {
+                "role": "user",
+                "content": json.dumps(semantic_candidates)
+            }
+        ],
+        response_format={"type": "json_object"}
+    )
 
-print("\n🤖 EVIDENCE VERIFICATION")
+    verification_result = json.loads(
+        verification_response.choices[0].message.content
+    )
 
-verified_matches = []
-verified_missing = []
+    return verification_result
 
-results = verification_result.get("results", [])
+def calculate_match_score(
+    requirements,
+    requirement_groups,
+    matched_groups,
+    verified_matches
+):
+    final_matched = list(dict.fromkeys(
+        matched_groups + verified_matches
+    ))
 
-if not isinstance(results, list):
-    print("⚠️ Unexpected verification format:")
-    print(verification_result)
-    results = []
+    final_missing = [
+        group
+        for group in requirement_groups
+        if group not in final_matched
+    ]
 
-for result in results:
+    REQUIRED_WEIGHT = 2
+    PREFERRED_WEIGHT = 1
 
-    if not isinstance(result, dict):
-        print("⚠️ Skipping invalid verification result:", result)
-        continue
+    group_priorities = {}
 
-    group = result.get("group")
-    matched = result.get("matched", False)
-    reason = result.get("reason", "")
+    for requirement in requirements:
+        skill = requirement["skill"]
+        priority = requirement["priority"]
 
-    if not group:
-        continue
+        for group, skills in requirement_groups.items():
 
-    if matched:
-        verified_matches.append(group)
-        status = "✅ MATCH"
+            if skill in skills:
+
+                if (
+                    group not in group_priorities
+                    or priority == "required"
+                ):
+                    group_priorities[group] = priority
+
+                break
+
+    total_weight = 0
+    matched_weight = 0
+
+    for group in requirement_groups:
+
+        priority = group_priorities.get(
+            group,
+            "preferred"
+        )
+
+        weight = (
+            REQUIRED_WEIGHT
+            if priority == "required"
+            else PREFERRED_WEIGHT
+        )
+
+        total_weight += weight
+
+        if group in final_matched:
+            matched_weight += weight
+
+    if total_weight > 0:
+        match_score = round(
+            (matched_weight / total_weight) * 100,
+            2
+        )
     else:
-        verified_missing.append(group)
-        status = "❌ NOT MATCH"
+        match_score = 0
 
-    print(f"\n{group}")
-    print(status)
-    print("Reason:", reason)
-
-verified_matches = [
-    item["group"]
-    for item in verification_result["results"]
-    if item["matched"]
-]
-
-verified_missing = [
-    item["group"]
-    for item in verification_result["results"]
-    if not item["matched"]
-]
-
-# Combine exact matches with verified semantic matches
-# --------------------------------------------------
-# FINAL GROUP MATCHING
-# --------------------------------------------------
-
-final_matched = list(dict.fromkeys(
-    matched_groups + verified_matches
-))
-
-final_missing = [
-    group
-    for group in requirement_groups
-    if group not in final_matched
-]
-
-
-# --------------------------------------------------
-# WEIGHTED SCORING
-# --------------------------------------------------
-
-REQUIRED_WEIGHT = 2
-PREFERRED_WEIGHT = 1
-
-# Map each original requirement to its group
-group_priorities = {}
-
-for requirement in requirements:
-
-    skill = requirement["skill"]
-    priority = requirement["priority"]
-
-    for group, skills in requirement_groups.items():
-
-        if skill in skills:
-
-            # If any requirement inside the group is required,
-            # treat the entire group as required.
-            if (
-                group not in group_priorities
-                or priority == "required"
-            ):
-                group_priorities[group] = priority
-
-            break
-
-
-total_weight = 0
-matched_weight = 0
-
-for group in requirement_groups:
-
-    priority = group_priorities.get(
-        group,
-        "preferred"
+    return (
+        final_matched,
+        final_missing,
+        match_score,
+        matched_weight,
+        total_weight
     )
 
-    weight = (
-        REQUIRED_WEIGHT
-        if priority == "required"
-        else PREFERRED_WEIGHT
-    )
 
-    total_weight += weight
-
-    if group in final_matched:
-        matched_weight += weight
-
-
-if total_weight > 0:
-    match_score = round(
-        (matched_weight / total_weight) * 100,
-        2
-    )
-else:
-    match_score = 0
-
-
-# --------------------------------------------------
-# FINAL REPORT
-# --------------------------------------------------
-
-print("\n" + "=" * 50)
-print("             FINAL RESUME MATCH")
-print("=" * 50)
-
-print(f"\nMatch Score: {match_score}%")
-print(
-    f"Matched Weight: "
-    f"{matched_weight}/{total_weight}"
-)
-
-print("\n✅ MATCHED")
-for group in final_matched:
-    print("•", group)
-
-print("\n❌ MISSING")
-for group in final_missing:
-    print("•", group)
-
-print("\n" + "=" * 50)
-
-
-# --------------------------------------------------
-# JOB RECOMMENDATIONS
-# --------------------------------------------------
-
-recommendation_prompt = f"""
+def generate_recommendations(
+    match_score,
+    final_matched,
+    final_missing
+):
+    recommendation_prompt = f"""
 You are a career advisor helping a software developer
 prepare for a job.
 
@@ -717,29 +537,168 @@ Rules:
 - Keep recommendations practical.
 """
 
-recommendation_response = client.chat.completions.create(
-    model="openai/gpt-oss-20b",
-    messages=[
-        {
-            "role": "system",
-            "content": """
+    recommendation_response = client.chat.completions.create(
+        model="openai/gpt-oss-20b",
+        messages=[
+            {
+                "role": "system",
+                "content": """
 You are a practical career advisor.
 Return only valid JSON.
 Do not invent information.
 """
-        },
-        {
-            "role": "user",
-            "content": recommendation_prompt
-        }
-    ],
-    response_format={"type": "json_object"}
+            },
+            {
+                "role": "user",
+                "content": recommendation_prompt
+            }
+        ],
+        response_format={"type": "json_object"}
+    )
+
+    return json.loads(
+        recommendation_response.choices[0].message.content
+    )
+
+resume, job_description = load_files()
+
+print("Resume loaded:", len(resume), "characters")
+print("Job description loaded:", len(job_description), "characters")
+
+
+
+
+load_dotenv()
+
+client = Groq(
+    api_key=os.getenv("GROQ_API_KEY")
 )
 
-recommendations = json.loads(
-    recommendation_response.choices[0].message.content
+embedding_model = SentenceTransformer("all-MiniLM-L6-v2")
+
+requirements = extract_requirements(job_description)
+# Normalize related requirements into broader capability groups
+requirement_groups = normalize_requirements(
+    requirements
 )
 
+print("\n📋 NORMALIZED REQUIREMENTS")
+
+for group, skills in requirement_groups.items():
+    print(f"• {group}: {', '.join(skills)}")
+
+matched_groups, missing_groups = find_exact_matches(
+    resume,
+    requirement_groups
+)
+
+print("\n✅ EXACT / GROUP MATCHES")
+for group in matched_groups:
+    print("•", group)
+
+print("\n❌ GROUPS NOT FOUND")
+for group in missing_groups:
+    print("•", group)
+
+
+
+
+semantic_candidates = retrieve_evidence(
+    resume,
+    missing_groups,
+    requirement_groups,
+    embedding_model
+)
+
+
+# --------------------------------------------------
+# LLM EVIDENCE VERIFICATION
+# --------------------------------------------------
+
+verification_result = verify_evidence(
+    semantic_candidates
+)
+
+print("\n🤖 EVIDENCE VERIFICATION")
+
+verified_matches = []
+verified_missing = []
+
+results = verification_result.get("results", [])
+
+if not isinstance(results, list):
+    print("⚠️ Unexpected verification format:")
+    print(verification_result)
+    results = []
+
+for result in results:
+
+    if not isinstance(result, dict):
+        print("⚠️ Skipping invalid verification result:", result)
+        continue
+
+    group = result.get("group")
+    matched = result.get("matched", False)
+    reason = result.get("reason", "")
+
+    if not group:
+        continue
+
+    if matched:
+        verified_matches.append(group)
+        status = "✅ MATCH"
+    else:
+        verified_missing.append(group)
+        status = "❌ NOT MATCH"
+
+    print(f"\n{group}")
+    print(status)
+    print("Reason:", reason)
+
+
+
+(
+    final_matched,
+    final_missing,
+    match_score,
+    matched_weight,
+    total_weight
+) = calculate_match_score(
+    requirements,
+    requirement_groups,
+    matched_groups,
+    verified_matches
+)
+# --------------------------------------------------
+# FINAL REPORT
+# --------------------------------------------------
+
+print("\n" + "=" * 50)
+print("             FINAL RESUME MATCH")
+print("=" * 50)
+
+print(f"\nMatch Score: {match_score}%")
+print(
+    f"Matched Weight: "
+    f"{matched_weight}/{total_weight}"
+)
+
+print("\n✅ MATCHED")
+for group in final_matched:
+    print("•", group)
+
+print("\n❌ MISSING")
+for group in final_missing:
+    print("•", group)
+
+
+
+
+recommendations = generate_recommendations(
+    match_score,
+    final_matched,
+    final_missing
+)
 
 # --------------------------------------------------
 # RECOMMENDATION REPORT
